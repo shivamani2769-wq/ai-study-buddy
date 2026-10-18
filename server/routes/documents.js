@@ -3,6 +3,7 @@ const multer = require('multer');
 const pdfParse = require('pdf-parse');
 const Document = require('../models/Document');
 const auth = require('../middleware/auth');
+const { askGemini } = require('../services/gemini');
 
 const router = express.Router();
 
@@ -75,6 +76,47 @@ router.get('/:id', auth, async (req, res) => {
     res.json(doc);
   } catch (err) {
     res.status(400).json({ message: 'Invalid document id' });
+  }
+});
+// POST /api/documents/:id/generate  -> summary + flashcards + quiz
+router.post('/:id/generate', auth, async (req, res) => {
+  try {
+    const doc = await Document.findOne({ _id: req.params.id, user: req.userId });
+    if (!doc) return res.status(404).json({ message: 'Document not found' });
+
+    const prompt = `You are a helpful study assistant for engineering students.
+Read the study notes below and return ONLY valid JSON in exactly this shape:
+{
+  "summary": "A clear summary in 6-8 sentences",
+  "flashcards": [ { "question": "...", "answer": "..." } ],
+  "quiz": [
+    { "question": "...", "options": ["A text", "B text", "C text", "D text"], "answer": "must be exactly one of the options", "topic": "short topic name" }
+  ]
+}
+Rules: give exactly 8 flashcards and exactly 6 quiz questions. Each quiz question has 4 options. Base everything only on the notes.
+
+NOTES:
+${doc.text}`;
+
+    const result = await askGemini(prompt);
+
+    // basic safety checks on what the AI returned
+    const flashcards = (result.flashcards || []).filter((f) => f.question && f.answer);
+    const quiz = (result.quiz || []).filter(
+      (q) => q.question && Array.isArray(q.options) && q.options.includes(q.answer)
+    );
+
+    doc.summary = result.summary || '';
+    doc.flashcards = flashcards;
+    doc.quiz = quiz;
+    await doc.save();
+
+    res.json({ summary: doc.summary, flashcards: doc.flashcards, quiz: doc.quiz });
+  } catch (err) {
+    if (err.status === 429) {
+      return res.status(429).json({ message: 'AI limit reached, please wait a minute and try again' });
+    }
+    res.status(500).json({ message: 'AI generation failed', error: err.message });
   }
 });
 
