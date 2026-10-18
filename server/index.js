@@ -12,6 +12,7 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', message: 'Study Buddy API is running' });
 });
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/documents', require('./routes/documents'));
 
 const PORT = process.env.PORT || 5000;
 
