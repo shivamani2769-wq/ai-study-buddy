@@ -12,6 +12,7 @@ export default function Dashboard() {
   const [uploading, setUploading] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
   const [error, setError] = useState('');
+    const [stats, setStats] = useState(null);
 
   const loadDocs = async () => {
     try {
@@ -26,6 +27,10 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadDocs();
+  }, []);
+
+    useEffect(() => {
+    api.get('/stats').then((r) => setStats(r.data)).catch(() => {});
   }, []);
 
   const handleUpload = async (e) => {
@@ -73,6 +78,29 @@ export default function Dashboard() {
           </button>
         </form>
       </div>
+
+            {stats && stats.attempts > 0 && (
+        <div className="card">
+          <h3>Your weak topics</h3>
+          <p className="muted small">
+            Based on {stats.attempts} quiz attempt(s), average score {stats.averageScore}%
+          </p>
+          {stats.topics.slice(0, 5).map((t) => (
+            <div key={t.topic} className="topic-row">
+              <div className="row-between">
+                <span>{t.topic}</span>
+                <span className="muted small">{t.accuracy}% ({t.correct}/{t.total})</span>
+              </div>
+              <div className="bar">
+                <div
+                  className={t.accuracy < 60 ? 'bar-fill bar-low' : 'bar-fill'}
+                  style={{ width: `${t.accuracy}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <h3>Your documents</h3>
       {loadingList && <p className="muted">Loading...</p>}

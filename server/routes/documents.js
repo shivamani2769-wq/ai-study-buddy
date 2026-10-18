@@ -4,6 +4,7 @@ const pdfParse = require('pdf-parse');
 const Document = require('../models/Document');
 const auth = require('../middleware/auth');
 const { askGemini } = require('../services/gemini');
+const Attempt = require('../models/Attempt');
 
 const router = express.Router();
 
@@ -117,6 +118,40 @@ ${doc.text}`;
       return res.status(429).json({ message: 'AI limit reached, please wait a minute and try again' });
     }
     res.status(500).json({ message: 'AI generation failed', error: err.message });
+  }
+});
+
+// POST /api/documents/:id/attempts  -> save a quiz attempt
+router.post('/:id/attempts', auth, async (req, res) => {
+  try {
+    const doc = await Document.findOne({ _id: req.params.id, user: req.userId });
+    if (!doc) return res.status(404).json({ message: 'Document not found' });
+
+    const answers = req.body.answers || {};
+    const byTopic = {};
+    let score = 0;
+
+    doc.quiz.forEach((q, i) => {
+      const topic = q.topic || 'General';
+      if (!byTopic[topic]) byTopic[topic] = { topic, correct: 0, total: 0 };
+      byTopic[topic].total += 1;
+      if (answers[i] === q.answer) {
+        score += 1;
+        byTopic[topic].correct += 1;
+      }
+    });
+
+    const attempt = await Attempt.create({
+      user: req.userId,
+      document: doc._id,
+      score,
+      total: doc.quiz.length,
+      topics: Object.values(byTopic),
+    });
+
+    res.status(201).json({ score: attempt.score, total: attempt.total });
+  } catch (err) {
+    res.status(500).json({ message: 'Could not save attempt', error: err.message });
   }
 });
 

@@ -28,7 +28,7 @@ function Flashcards({ cards }) {
   );
 }
 
-function Quiz({ questions }) {
+function Quiz({ questions,docId}) {
   const [answers, setAnswers] = useState({});
   const [submitted, setSubmitted] = useState(false);
   if (!questions.length) return <p className="muted">No quiz questions.</p>;
@@ -38,6 +38,14 @@ function Quiz({ questions }) {
   const reset = () => {
     setAnswers({});
     setSubmitted(false);
+  }; 
+   const submit = async () => {
+    setSubmitted(true);
+    try {
+      await api.post(`/documents/${docId}/attempts`, { answers });
+    } catch (err) {
+      console.error('Could not save attempt', err);
+    }
   };
 
   return (
@@ -73,7 +81,7 @@ function Quiz({ questions }) {
         <button
           className="btn"
           disabled={Object.keys(answers).length < questions.length}
-          onClick={() => setSubmitted(true)}
+          onClick={submit}
         >
           Submit quiz
         </button>
@@ -164,7 +172,7 @@ export default function DocumentView() {
           <div className="card">
             {tab === 'summary' && <p style={{ lineHeight: 1.7 }}>{doc.summary}</p>}
             {tab === 'flashcards' && <Flashcards cards={doc.flashcards || []} />}
-            {tab === 'quiz' && <Quiz questions={doc.quiz || []} />}
+            {tab === 'quiz' && <Quiz questions={doc.quiz || []} docId={id} />}
           </div>
         </>
       )}
